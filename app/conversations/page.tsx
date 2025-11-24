@@ -1,18 +1,31 @@
 'use client'
 import React, { useEffect, useState } from 'react'
-import { MessageCircle, User, ArrowLeft, Send } from 'lucide-react'
+import { MessageCircle, User, ArrowLeft, Send, FileText } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
+import ContractDialog from '@/components/ContractDialog'
+import toast from 'react-hot-toast'
 
 const ConversationsPage = () => {
     const router = useRouter()
-    const { getToken } = useAuth()
+    const { getToken, userId } = useAuth()
     const [conversations, setConversations] = useState<any[]>([])
     const [selectedConversation, setSelectedConversation] = useState<any>(null)
     const [messages, setMessages] = useState<any[]>([])
     const [newMessage, setNewMessage] = useState("")
     const [sendingMessage, setSendingMessage] = useState(false)
     const [loadingMessages, setLoadingMessages] = useState(false)
+    const [showContractDialog, setShowContractDialog] = useState(false)
+    const [contractForm, setContractForm] = useState({
+        title: "",
+        description: "",
+        price: "",
+        deadline: "",
+        location: "",
+        estimatedHours: "",
+        paymentTerms: ""
+    })
+    const [creatingContract, setCreatingContract] = useState(false)
 
     const getConversations = async () => {
         try {
@@ -98,6 +111,64 @@ const ConversationsPage = () => {
         }
     }
 
+
+    const handleCreateContract = async () => {
+        if (!selectedConversation) return
+
+        // Get the other participant (receiver) - not the current user
+        const otherParticipant = selectedConversation.participants?.find(
+            (p: any) => p._id !== userId
+        )
+
+        if (!otherParticipant) {
+            toast.error("Could not find the other participant", { duration: 5000 })
+            return
+        }
+
+        setCreatingContract(true)
+
+        try {
+            const token = await getToken()
+            const res = await fetch('http://localhost:3001/api/contracts', {
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    receiverId: otherParticipant._id,
+                    conversationId: selectedConversation._id,
+                    ...contractForm,
+                    price: parseFloat(contractForm.price),
+                    estimatedHours: parseFloat(contractForm.estimatedHours)
+                })
+            })
+
+            if (res.ok) {
+                toast.success("Contract proposal sent successfully!", { duration: 5000 })
+                setShowContractDialog(false)
+                // Reset form
+                setContractForm({
+                    title: "",
+                    description: "",
+                    price: "",
+                    deadline: "",
+                    location: "",
+                    estimatedHours: "",
+                    paymentTerms: ""
+                })
+            } else {
+                const error = await res.json()
+                toast.error(error.message || "Failed to create contract", { duration: 5000 })
+            }
+        } catch (error) {
+            console.error("Error creating contract:", error)
+            toast.error("Error creating contract", { duration: 5000 })
+        } finally {
+            setCreatingContract(false)
+        }
+    }
+
     useEffect(() => {
         getConversations()
     }, [])
@@ -167,22 +238,43 @@ const ConversationsPage = () => {
                             <>
                                 {/* Chat Header */}
                                 <div className="p-4 border-b border-base-300">
-                                    <div className="flex items-center gap-3">
-                                        <div className="avatar placeholder">
-                                            <div className="bg-secondary text-secondary-content rounded-full w-10">
-                                                <User size={20} />
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="avatar placeholder">
+                                                <div className="bg-secondary text-secondary-content rounded-full w-10">
+                                                    <User size={20} />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold">
+                                                    {selectedConversation.participants?.find((p: any) => p.name)?.name || "User"}
+                                                </p>
+                                                {selectedConversation.participants?.find((p: any) => p.specialty)?.specialty && (
+                                                    <p className="text-sm text-base-content/70">
+                                                        {selectedConversation.participants.find((p: any) => p.specialty).specialty}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="font-semibold">
-                                                {selectedConversation.participants?.find((p: any) => p.name)?.name || "User"}
-                                            </p>
-                                            {selectedConversation.participants?.find((p: any) => p.specialty)?.specialty && (
-                                                <p className="text-sm text-base-content/70">
-                                                    {selectedConversation.participants.find((p: any) => p.specialty).specialty}
-                                                </p>
-                                            )}
-                                        </div>
+
+                                        {/* Make a Contract Button - Only show if other user is a handy */}
+                                        {(() => {
+                                            // Find the other participant (not the current user)
+                                            const userId = selectedConversation.participants[0]._id;
+                                            console.log('participents are : ', selectedConversation.participants)
+                                            const otherParticipant = selectedConversation.participants?.find(
+                                                (p: any) => p._id == userId
+                                            )
+                                            return otherParticipant?.is_handy ? (
+                                                <button
+                                                    className="btn btn-sm btn-primary gap-2"
+                                                    onClick={() => setShowContractDialog(true)}
+                                                >
+                                                    <FileText size={16} />
+                                                    Make a Contract
+                                                </button>
+                                            ) : null
+                                        })()}
                                     </div>
                                 </div>
 
@@ -253,6 +345,16 @@ const ConversationsPage = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Contract Dialog Modal */}
+                <ContractDialog
+                    isOpen={showContractDialog}
+                    onClose={() => setShowContractDialog(false)}
+                    contractForm={contractForm}
+                    setContractForm={setContractForm}
+                    onSubmit={handleCreateContract}
+                    isSubmitting={creatingContract}
+                />
             </div>
         </div>
     )

@@ -8,6 +8,7 @@ import webHookRouter from "./routes/webhook.rout.js";
 import postRouter from "./routes/post.route.js";
 import conversationRouter from "./routes/conversation.route.js";
 import messageRouter from "./routes/message.route.js";
+import contractRouter from "./routes/contract.route.js";
 
 dotenv.config({ path: '.env.local' });
 
@@ -31,6 +32,7 @@ app.use("/api/users", userRouter);
 app.use("/api/posts", postRouter);
 app.use("/api/conversations", conversationRouter);
 app.use("/api/messages", messageRouter);
+app.use("/api/contracts", contractRouter);
 
 
 // ✅ Connect to MongoDB and start the server

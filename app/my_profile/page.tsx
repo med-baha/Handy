@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Briefcase, MessageSquare, Settings, Star, User, Plus } from "lucide-react";
-import { useState } from "react";
+import { Briefcase, MessageSquare, Settings, Star, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 const HandyProfile = ({ userData }: any) => {
@@ -10,6 +10,7 @@ const HandyProfile = ({ userData }: any) => {
   const [postContent, setPostContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [pendingContractsCount, setPendingContractsCount] = useState(0);
 
   const handleCreatePost = async () => {
     if (!postContent.trim()) return;
@@ -45,6 +46,36 @@ const HandyProfile = ({ userData }: any) => {
       setIsSubmitting(false);
     }
   };
+
+  const fetchPendingContracts = async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch("http://localhost:3001/api/contracts", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const contracts = await res.json();
+        // Count only pending contracts where the user is the receiver
+        const pendingCount = contracts.filter(
+          (c: any) => c.status === 'pending' && c.receiver._id === userData._id
+        ).length;
+        setPendingContractsCount(pendingCount);
+      }
+    } catch (error) {
+      console.error("Error fetching contracts:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (userData?._id) {
+      fetchPendingContracts();
+    }
+  }, [userData]);
 
 
   if (!userData) return <div className="flex h-screen items-center justify-center">Loading...</div>;
@@ -119,6 +150,19 @@ const HandyProfile = ({ userData }: any) => {
               >
                 <MessageSquare size={18} />
                 Messages
+              </button>
+
+              <button
+                className="btn btn-neutral gap-2 relative"
+                onClick={() => router.push('/contracts')}
+              >
+                <Briefcase size={18} />
+                Contracts
+                {pendingContractsCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-error text-error-content rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {pendingContractsCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>

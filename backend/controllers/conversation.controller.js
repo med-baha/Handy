@@ -67,7 +67,7 @@ export const getUserConversations = async (req, res) => {
         const conversations = await Conversation.find({
             participants: currentUser._id
         })
-            .populate('participants', 'name profilepic clerk_id')
+            .populate('participants', 'name profilepic is_handy')
             .sort({ updatedAt: -1 });
 
         return res.status(200).json(conversations);
