@@ -6,7 +6,7 @@ const router = express.Router();
 // Create or get conversation
 router.post('/', createOrGetConversation);
 
-// Get all conversations for user
+// Get all conversations for authenticated user
 router.get('/', getUserConversations);
 
 export default router;

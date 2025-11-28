@@ -1,5 +1,6 @@
 import Conversation from "../models/Conversations.js";
 import User from "../models/User.js";
+import Message from "../models/Messages.js";
 import { getAuth } from "@clerk/express";
 
 // Create or get existing conversation between two users
@@ -30,7 +31,10 @@ export const createOrGetConversation = async (req, res) => {
         }).populate('participants', 'name profilepic clerk_id');
 
         if (existingConversation) {
-            return res.status(200).json(existingConversation);
+            return res.status(200).json({
+                ...existingConversation.toObject(),
+                isExisting: true
+            });
         }
 
         // Create new conversation
@@ -42,7 +46,10 @@ export const createOrGetConversation = async (req, res) => {
         const populatedConversation = await Conversation.findById(newConversation._id)
             .populate('participants', 'name profilepic clerk_id');
 
-        return res.status(201).json(populatedConversation);
+        return res.status(201).json({
+            ...populatedConversation.toObject(),
+            isExisting: false
+        });
     } catch (error) {
         console.error("Error in createOrGetConversation:", error);
         return res.status(500).json({ message: "Server error", error: error.message });
@@ -53,7 +60,6 @@ export const createOrGetConversation = async (req, res) => {
 export const getUserConversations = async (req, res) => {
     try {
         const { userId: clerkId } = getAuth(req);
-
         if (!clerkId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -64,6 +70,7 @@ export const getUserConversations = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // Use the MongoDB _id of the authenticated user
         const conversations = await Conversation.find({
             participants: currentUser._id
         })

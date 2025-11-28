@@ -20,7 +20,7 @@ export const getPosts = async (req, res) => {
 
     try {
         // Populate the poster field to get user details
-        const posts = await Post.find({}).populate('poster', 'name specialty profilepic');
+        const posts = await Post.find({}).populate('poster', 'name specialty profilepic clerk_id');
         return res.status(200).json(posts)
     } catch (error) {
         return res.status(500).json(error)

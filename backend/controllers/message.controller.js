@@ -2,6 +2,7 @@ import Message from "../models/Messages.js";
 import Conversation from "../models/Conversations.js";
 import User from "../models/User.js";
 import { getAuth } from "@clerk/express";
+import { io } from "../server.js";
 
 // Send a message in a conversation
 export const sendMessage = async (req, res) => {
@@ -51,12 +52,16 @@ export const sendMessage = async (req, res) => {
         const populatedMessage = await Message.findById(newMessage._id)
             .populate('sender', 'name profilepic clerk_id');
 
+        // ✅ Emit real-time message to all users in the conversation room
+        io.to(conversationId).emit('new-message', populatedMessage);
+
         return res.status(201).json(populatedMessage);
     } catch (error) {
         console.error("Error in sendMessage:", error);
         return res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
 
 // Get all messages for a conversation
 export const getConversationMessages = async (req, res) => {

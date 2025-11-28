@@ -10,6 +10,7 @@ import {
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { SocketProvider } from './lib/socket'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -35,25 +36,27 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-          <header className="flex justify-end items-center p-4 gap-4 h-16 bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-lg">
-            <SignedOut>
-              <SignInButton />
-              <SignUpButton>
-                <button className="bg-white text-[#6c47ff] rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 cursor-pointer hover:bg-gray-100 transition-colors">
-                  Sign Up
-                </button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <UserButton appearance={{
-                elements: {
-                  avatarBox: "h-9 w-9",
-                }
-              }} />
-            </SignedIn>
-          </header>
-          {children}
-          <Toaster />
+          <SocketProvider>
+            <header className="flex justify-end items-center p-4 gap-4 h-16 bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-lg">
+              <SignedOut>
+                <SignInButton />
+                <SignUpButton>
+                  <button className="bg-white text-[#6c47ff] rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 cursor-pointer hover:bg-gray-100 transition-colors">
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton appearance={{
+                  elements: {
+                    avatarBox: "h-9 w-9",
+                  }
+                }} />
+              </SignedIn>
+            </header>
+            {children}
+            <Toaster />
+          </SocketProvider>
         </body>
       </html>
     </ClerkProvider>

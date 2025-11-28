@@ -11,8 +11,8 @@ const SingUpPage = () => {
     active === "" ? (
       <div className="min-h-screen bg-base-200 flex flex-col items-center justify-center p-4 font-sans text-base-content">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-primary mb-4">Welcome to Handy!</h1>
-          <p className="text-xl text-base-content/70">Let's get you set up. How do you want to use the platform?</p>
+          <h1 className="text-4xl font-bold text-white mb-4">Welcome to Handy!</h1>
+          <p className="text-xl text-white">Let's get you set up. How do you want to use the platform?</p>
         </div>
 
         <div className="flex flex-col md:flex-row gap-8 w-full max-w-4xl">
@@ -82,6 +82,8 @@ const HandyForm = () => {
       },
       body: JSON.stringify(updatedData),
     })
+    // Clear cache so fresh data is fetched
+    sessionStorage.removeItem("userData");
     router.push('/');
   };
 
@@ -141,7 +143,6 @@ const NonHandyForm = () => {
   const [formData, setFormData] = useState({
     profilePicture: "",
     is_company: "true",
-    post: ""
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,6 +167,8 @@ const NonHandyForm = () => {
       },
       body: JSON.stringify(updatedData),
     });
+    // Clear cache so fresh data is fetched
+    sessionStorage.removeItem("userData");
     router.push('/handys')
   };
 
@@ -203,16 +206,6 @@ const NonHandyForm = () => {
                   <span className="label-text">An Individual</span>
                 </label>
               </div>
-            </div>
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">What are you looking for?</span></label>
-              <textarea
-                onChange={handleChange}
-                name='post'
-                className="textarea textarea-bordered h-24"
-                placeholder="Briefly describe what you need help with..."
-              />
             </div>
 
             <div className="form-control">

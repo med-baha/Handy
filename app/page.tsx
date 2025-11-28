@@ -99,13 +99,10 @@ export default function Home() {
       return (
         <HandyProfile userData={userData} />
       );
-    } if (!userData.is_handy && !userData.is_handy === undefined) {
+    } else if (userData.is_handy === false) {
       return (
         <HandysPage />
       )
     }
   }
-
 }
-
-

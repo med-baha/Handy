@@ -1,14 +1,17 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { MessageCircle, User, ArrowLeft, Send, FileText } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import ContractDialog from '@/components/ContractDialog'
 import toast from 'react-hot-toast'
-
+import { useSocket } from '@/app/lib/socket'
 const ConversationsPage = () => {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { getToken, userId } = useAuth()
+    const { socket, isConnected } = useSocket()
+    const [currentUser, setCurrentUser] = useState<any>({})
     const [conversations, setConversations] = useState<any[]>([])
     const [selectedConversation, setSelectedConversation] = useState<any>(null)
     const [messages, setMessages] = useState<any[]>([])
@@ -26,27 +29,82 @@ const ConversationsPage = () => {
         paymentTerms: ""
     })
     const [creatingContract, setCreatingContract] = useState(false)
-
-    const getConversations = async () => {
+    const [isTyping, setIsTyping] = useState(false)
+    const [otherUserTyping, setOtherUserTyping] = useState<string | null>(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const getCurrentUser = async () => {
+        if (!userId) {
+            return
+        }
         try {
             const token = await getToken()
-            const res = await fetch('http://localhost:3001/api/conversations', {
+            const res = await fetch(`http://localhost:3001/api/users/${userId}`, {
                 method: 'GET',
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 }
             })
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`)
+            }
+            const data = await res.json()
+            setCurrentUser(data)
+            return data
+        } catch (error) {
+            console.error("Failed to fetch current user:", error)
+            toast.error("Failed to load user data.")
+            return
+        }
+    }
+    useEffect(() => {
+        const loadData = async () => {
+            if (!userId) return // Wait for auth to be ready
+
+            const user = await getCurrentUser()
+            if (user) {
+                await getConversations()
+            }
+        }
+        loadData()
+    }, [userId]) // Re-run when userId is available
+
+    const getConversations = async () => {
+        try {
+            const token = await getToken()
+            const res = await fetch(`http://localhost:3001/api/conversations`, {
+                method: 'GET',
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            })
 
             if (res.ok) {
                 const data = await res.json()
                 setConversations(data)
                 console.log("Conversations:", data)
+            } else {
+                console.error("Failed to fetch conversations:", res.status)
             }
         } catch (error) {
             console.error("Error fetching conversations:", error)
         }
     }
+
+    // Auto-select conversation from URL parameter
+    useEffect(() => {
+        const conversationId = searchParams.get('id')
+        if (conversationId && conversations.length > 0) {
+            const conversation = conversations.find((c: any) => c._id === conversationId)
+            if (conversation) {
+                handleSelectConversation(conversation)
+                // Clean up URL parameter
+                router.replace('/conversations', { scroll: false })
+            }
+        }
+    }, [conversations, searchParams])
 
     const getMessages = async (conversationId: string) => {
         setLoadingMessages(true)
@@ -73,8 +131,18 @@ const ConversationsPage = () => {
     }
 
     const handleSelectConversation = (conversation: any) => {
+        // Leave previous conversation room
+        if (selectedConversation && socket) {
+            socket.emit('leave-conversation', selectedConversation._id)
+        }
+
         setSelectedConversation(conversation)
         getMessages(conversation._id)
+
+        // Join new conversation room
+        if (socket) {
+            socket.emit('join-conversation', conversation._id)
+        }
     }
 
     const handleSendMessage = async () => {
@@ -110,6 +178,79 @@ const ConversationsPage = () => {
             setSendingMessage(false)
         }
     }
+
+    // Auto-scroll to bottom when new messages arrive
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+
+    useEffect(() => {
+        scrollToBottom()
+    }, [messages])
+
+    // Socket.IO event listeners
+    useEffect(() => {
+        if (!socket || !selectedConversation) return
+
+        // Listen for new messages
+        const handleNewMessage = (message: any) => {
+            // Only add message if it belongs to the current conversation
+            if (message.conversation === selectedConversation._id) {
+                setMessages((prev) => {
+                    // Prevent duplicates
+                    if (prev.some(m => m._id === message._id)) return prev
+                    return [...prev, message]
+                })
+            }
+        }
+
+        // Listen for typing indicators
+        const handleUserTyping = ({ userName }: { userName: string; userId: string }) => {
+            setOtherUserTyping(userName)
+        }
+
+        const handleUserStopTyping = () => {
+            setOtherUserTyping(null)
+        }
+
+        socket.on('new-message', handleNewMessage)
+        socket.on('user-typing', handleUserTyping)
+        socket.on('user-stop-typing', handleUserStopTyping)
+
+        // Cleanup
+        return () => {
+            socket.off('new-message', handleNewMessage)
+            socket.off('user-typing', handleUserTyping)
+            socket.off('user-stop-typing', handleUserStopTyping)
+        }
+    }, [socket, selectedConversation])
+
+    // Handle typing indicator
+    const handleTyping = () => {
+        if (!socket || !selectedConversation || !currentUser.name) return
+
+        if (!isTyping) {
+            setIsTyping(true)
+            socket.emit('typing', {
+                conversationId: selectedConversation._id,
+                userName: currentUser.name
+            })
+        }
+
+        // Clear existing timeout
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current)
+        }
+
+        // Set new timeout to stop typing indicator
+        typingTimeoutRef.current = setTimeout(() => {
+            setIsTyping(false)
+            socket.emit('stop-typing', {
+                conversationId: selectedConversation._id
+            })
+        }, 1000)
+    }
+
 
 
     const handleCreateContract = async () => {
@@ -169,9 +310,7 @@ const ConversationsPage = () => {
         }
     }
 
-    useEffect(() => {
-        getConversations()
-    }, [])
+
 
     return (
         <div className="min-h-screen bg-base-200 font-sans text-base-content">
@@ -203,7 +342,7 @@ const ConversationsPage = () => {
                                     </div>
                                 ) : (
                                     conversations.map((conv: any) => {
-                                        const otherUser = conv.participants?.find((p: any) => p._id !== conv.participants[0]._id) || conv.participants[0]
+                                        const otherUser = conv.participants?.find((p: any) => p._id !== currentUser._id)
                                         return (
                                             <div
                                                 key={conv._id}
@@ -218,7 +357,7 @@ const ConversationsPage = () => {
                                                         </div>
                                                     </div>
                                                     <div className="flex-1">
-                                                        <p className="font-semibold">{otherUser?.name || "User"}</p>
+                                                        <p className="font-semibold">{otherUser?.name}</p>
                                                         {otherUser?.specialty && (
                                                             <p className="text-sm text-base-content/70">{otherUser.specialty}</p>
                                                         )}
@@ -260,11 +399,12 @@ const ConversationsPage = () => {
                                         {/* Make a Contract Button - Only show if other user is a handy */}
                                         {(() => {
                                             // Find the other participant (not the current user)
-                                            const userId = selectedConversation.participants[0]._id;
+
                                             console.log('participents are : ', selectedConversation.participants)
                                             const otherParticipant = selectedConversation.participants?.find(
-                                                (p: any) => p._id == userId
+                                                (p: any) => p._id !== currentUser._id
                                             )
+                                            console.log('other participant is : ', otherParticipant)
                                             return otherParticipant?.is_handy ? (
                                                 <button
                                                     className="btn btn-sm btn-primary gap-2"
@@ -304,6 +444,18 @@ const ConversationsPage = () => {
                                             </div>
                                         ))
                                     )}
+
+                                    {/* Typing indicator */}
+                                    {otherUserTyping && (
+                                        <div className="chat chat-start">
+                                            <div className="chat-bubble bg-base-300 text-base-content/70 text-sm">
+                                                {otherUserTyping} is typing...
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Auto-scroll anchor */}
+                                    <div ref={messagesEndRef} />
                                 </div>
 
                                 {/* Message Input */}
@@ -313,7 +465,10 @@ const ConversationsPage = () => {
                                             className="textarea textarea-bordered flex-1 resize-none"
                                             placeholder="Type your message..."
                                             value={newMessage}
-                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            onChange={(e) => {
+                                                setNewMessage(e.target.value)
+                                                handleTyping()
+                                            }}
                                             onKeyPress={(e) => {
                                                 if (e.key === 'Enter' && !e.shiftKey) {
                                                     e.preventDefault()

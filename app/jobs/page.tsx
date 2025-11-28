@@ -7,7 +7,7 @@ import { useAuth } from '@clerk/nextjs'
 const JobsPage = () => {
   const [posts, setPosts] = useState([])
   const router = useRouter()
-  const { getToken } = useAuth()
+  const { getToken, userId } = useAuth()
   const [loadingConversation, setLoadingConversation] = useState<string | null>(null)
   const [showMessageDialog, setShowMessageDialog] = useState(false)
   const [selectedPoster, setSelectedPoster] = useState<any>(null)
@@ -50,8 +50,17 @@ const JobsPage = () => {
       if (res.ok) {
         const conversation = await res.json();
         console.log("Conversation created/found:", conversation);
-        setConversationId(conversation._id);
-        setShowMessageDialog(true);
+
+        // If conversation already exists, redirect to conversations page
+        // If new conversation, show message dialog
+        if (conversation.isExisting) {
+          // Existing conversation - redirect to conversations page with conversation ID
+          router.push(`/conversations?id=${conversation._id}`);
+        } else {
+          // New conversation - show message dialog
+          setConversationId(conversation._id);
+          setShowMessageDialog(true);
+        }
       } else {
         const error = await res.json();
         alert(error.message || "Failed to create conversation");
@@ -63,6 +72,7 @@ const JobsPage = () => {
       setLoadingConversation(null);
     }
   }
+
 
   const handleSendMessage = async () => {
     if (!messageContent.trim() || !conversationId) return;
@@ -87,8 +97,8 @@ const JobsPage = () => {
         console.log("Message sent successfully");
         setMessageContent("");
         setShowMessageDialog(false);
-        // Navigate to conversations page
-        router.push('/conversations');
+        // Navigate to conversations page with the conversation ID
+        router.push(`/conversations?id=${conversationId}`);
       } else {
         const error = await res.json();
         alert(error.message || "Failed to send message");
@@ -152,23 +162,26 @@ const JobsPage = () => {
                 <p className="text-lg font-medium text-base-content mb-4">{item.content}</p>
 
                 <div className="card-actions justify-end">
-                  <button
-                    className="btn btn-sm btn-outline btn-primary gap-2"
-                    onClick={() => handleContactPoster(item.poster)}
-                    disabled={!item.poster?._id || loadingConversation === item.poster?._id}
-                  >
-                    {loadingConversation === item.poster?._id ? (
-                      <>
-                        <span className="loading loading-spinner loading-xs"></span>
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <MessageCircle size={16} />
-                        Contact Poster
-                      </>
-                    )}
-                  </button>
+                  {/* Only show button if current user is not the poster */}
+                  {userId && userId !== item.poster?.clerk_id && (
+                    <button
+                      className="btn btn-sm btn-outline btn-primary gap-2"
+                      onClick={() => handleContactPoster(item.poster)}
+                      disabled={!item.poster?._id || loadingConversation === item.poster?._id}
+                    >
+                      {loadingConversation === item.poster?._id ? (
+                        <>
+                          <span className="loading loading-spinner loading-xs"></span>
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <MessageCircle size={16} />
+                          Contact Poster
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
