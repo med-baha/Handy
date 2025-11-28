@@ -94,3 +94,36 @@ export const getAllUser = async (req, res) => {
   }
 
 }
+
+export const searchHandys = async (req, res) => {
+  try {
+    const { userId } = getAuth(req)
+    const authuser = await clerkClient.users.getUser(userId)
+    if (!authuser)
+      return res.status(401).json({ message: "unauthorized!!" })
+
+    const { name, specialty } = req.query;
+
+    // Build query object
+    const query = { is_handy: true };
+
+    // Add search filter - searches BOTH name and specialty fields
+    if (name && name.trim() !== '') {
+      query.$or = [
+        { name: { $regex: name.trim(), $options: 'i' } },
+        { specialty: { $regex: name.trim(), $options: 'i' } }
+      ];
+    }
+
+    // Add specialty filter (exact match from dropdown)
+    if (specialty && specialty.trim() !== '' && specialty !== 'all') {
+      query.specialty = specialty.trim();
+    }
+
+    const users = await user.find(query);
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error searching handys:', error);
+    return res.status(500).json({ message: "Error searching handys", error })
+  }
+}

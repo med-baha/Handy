@@ -63,9 +63,20 @@ const HandyForm = () => {
   const router = useRouter()
   const { getToken } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOther, setIsOther] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (e.target.name === 'specialty' && e.target.tagName === 'SELECT') {
+      if (e.target.value === 'Other') {
+        setIsOther(true);
+        setFormData({ ...formData, specialty: "" });
+      } else {
+        setIsOther(false);
+        setFormData({ ...formData, specialty: e.target.value });
+      }
+    } else {
+      setFormData({ ...formData, [e.target.name]: e.target.value });
+    }
   };
 
   const handleOnSubmit = async (e: React.FormEvent) => {
@@ -97,14 +108,31 @@ const HandyForm = () => {
           <form onSubmit={handleOnSubmit} className="space-y-4">
             <div className="form-control">
               <label className="label"><span className="label-text">What is your specialty?</span></label>
-              <input
+              <select
                 onChange={handleChange}
                 name='specialty'
-                type="text"
-                className="input input-bordered w-full"
-                placeholder="e.g. Plumber, Electrician, Carpenter"
+                className="select select-bordered w-full"
                 required
-              />
+                value={isOther ? "Other" : formData.specialty}
+              >
+                <option value="" disabled>Select your specialty</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Electrician">Electrician</option>
+                <option value="Carpentry">Carpentry</option>
+                <option value="Gardening">Gardening</option>
+                <option value="Other">Other</option>
+              </select>
+              {isOther && (
+                <input
+                  onChange={handleChange}
+                  name='specialty'
+                  type="text"
+                  className="input input-bordered w-full mt-2"
+                  placeholder="Please specify your specialty"
+                  required
+                  value={formData.specialty}
+                />
+              )}
             </div>
 
             <div className="form-control">

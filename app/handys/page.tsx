@@ -17,19 +17,34 @@ const HandysPage = () => {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [messageContent, setMessageContent] = useState("")
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedSpecialty, setSelectedSpecialty] = useState("all")
+  const [isSearching, setIsSearching] = useState(false)
   const router = useRouter()
 
-  const getHandys = async () => {
-    const token = await getToken()
-    const res = await fetch('http://localhost:3001/api/users', {
-      method: 'GET',
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      }
-    })
-    const data = await res.json()
-    setHandysData(data)
+  const searchHandys = async (name: string = "", specialty: string = "all") => {
+    setIsSearching(true)
+    try {
+      const token = await getToken()
+      const params = new URLSearchParams()
+      if (name.trim()) params.append('name', name.trim())
+      if (specialty && specialty !== 'all') params.append('specialty', specialty)
+
+      const url = `http://localhost:3001/api/users/search${params.toString() ? '?' + params.toString() : ''}`
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        }
+      })
+      const data = await res.json()
+      setHandysData(data)
+    } catch (error) {
+      console.error('Error searching handys:', error)
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   const getCurrentUser = async () => {
@@ -158,8 +173,16 @@ const HandysPage = () => {
     }
   }
 
+  // Debounced search effect
   useEffect(() => {
-    getHandys()
+    const timer = setTimeout(() => {
+      searchHandys(searchQuery, selectedSpecialty)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery, selectedSpecialty])
+
+  useEffect(() => {
     getCurrentUser()
   }, [])
 
@@ -224,73 +247,89 @@ const HandysPage = () => {
                 type="text"
                 placeholder="Search by name or specialty..."
                 className="input input-bordered w-full pl-10 pr-4"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             </div>
           </div>
-          <select className="select select-bordered w-full md:w-auto" defaultValue="">
-            <option disabled value="">Filter by Specialty</option>
-            <option>Plumbing</option>
-            <option>Electrician</option>
-            <option>Carpentry</option>
-            <option>Gardening</option>
+          <select
+            className="select select-bordered w-full md:w-auto"
+            value={selectedSpecialty}
+            onChange={(e) => setSelectedSpecialty(e.target.value)}
+          >
+            <option value="all">All Specialties</option>
+            <option value="Plumbing">Plumbing</option>
+            <option value="Electrician">Electrician</option>
+            <option value="Carpentry">Carpentry</option>
+            <option value="Gardening">Gardening</option>
           </select>
         </div>
 
         {/* Handyman Cards Grid */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {handysData.map((item: any, index) => (
-            <div
-              key={index}
-              className="card bg-base-100 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl"
-            >
-              <div className="card-body">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="avatar placeholder">
-                      <div className="bg-neutral-focus text-neutral-content w-12 rounded-full ring ring-primary ring-offset-2 ring-offset-base-100">
-                        {item.profile_pic ? <img src={item.profile_pic} /> : <span className="text-xl">{item.name?.[0]?.toUpperCase()}</span>}
+        {isSearching ? (
+          <div className="flex justify-center items-center py-12">
+            <span className="loading loading-spinner loading-lg"></span>
+          </div>
+        ) : handysData.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-lg text-base-content/70">No handys found matching your search.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {handysData.map((item: any, index) => (
+              <div
+                key={index}
+                className="card bg-base-100 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl"
+              >
+                <div className="card-body">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="avatar placeholder">
+                        <div className="bg-neutral-focus text-neutral-content w-12 rounded-full ring ring-primary ring-offset-2 ring-offset-base-100">
+                          {item.profile_pic ? <img src={item.profile_pic} /> : <span className="text-xl">{item.name?.[0]?.toUpperCase()}</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <h2 className="card-title text-lg">{item.name}</h2>
+                        <div className="badge badge-secondary badge-sm gap-1">
+                          <Briefcase size={10} />
+                          {item.specialty}
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <h2 className="card-title text-lg">{item.name}</h2>
-                      <div className="badge badge-secondary badge-sm gap-1">
-                        <Briefcase size={10} />
-                        {item.specialty}
+                    {item.rating && (
+                      <div className="flex items-center gap-1 text-warning font-bold">
+                        <span>{item.rating}</span>
+                        <Star size={16} fill="currentColor" />
                       </div>
-                    </div>
+                    )}
                   </div>
-                  {item.rating && (
-                    <div className="flex items-center gap-1 text-warning font-bold">
-                      <span>{item.rating}</span>
-                      <Star size={16} fill="currentColor" />
-                    </div>
-                  )}
-                </div>
 
-                <p className="mt-4 line-clamp-3 text-sm text-base-content/80">
-                  {item.description}
-                </p>
+                  <p className="mt-4 line-clamp-3 text-sm text-base-content/80">
+                    {item.description}
+                  </p>
 
-                <div className="card-actions mt-6 justify-end">
-                  {currentUser && currentUser._id !== item._id && (
-                    <button
-                      className="btn btn-primary btn-sm w-full"
-                      onClick={() => handleContactHandy(item)}
-                      disabled={loadingConversation === item._id}
-                    >
-                      {loadingConversation === item._id ? (
-                        <span className="loading loading-spinner loading-xs"></span>
-                      ) : (
-                        "Contact"
-                      )}
-                    </button>
-                  )}
+                  <div className="card-actions mt-6 justify-end">
+                    {currentUser && currentUser._id !== item._id && (
+                      <button
+                        className="btn btn-primary btn-sm w-full"
+                        onClick={() => handleContactHandy(item)}
+                        disabled={loadingConversation === item._id}
+                      >
+                        {loadingConversation === item._id ? (
+                          <span className="loading loading-spinner loading-xs"></span>
+                        ) : (
+                          "Contact"
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Message Dialog */}
